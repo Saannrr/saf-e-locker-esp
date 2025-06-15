@@ -1,0 +1,56 @@
+# ===================================================================
+# .gitignore untuk Proyek Arduino / ESP32
+# Dibuat untuk menjaga repositori tetap bersih dan aman.
+# ===================================================================
+
+# 1. FILE KONFIGURASI DAN RAHASIA
+# Abaikan file yang berisi data sensitif seperti password WiFi, API Keys, atau token.
+# Ini adalah bagian paling penting untuk keamanan!
+config.h
+secrets.h
+
+# 2. FILE HASIL KOMPILASI DAN BUILD DARI ARDUINO IDE
+# File-file ini dibuat secara otomatis oleh IDE setiap kali Anda
+# melakukan 'Verify' atau 'Upload'. Tidak perlu disimpan di repositori.
+*.o
+*.a
+*.d
+*.eep
+*.elf
+*.hex
+*.bin
+*.lss
+*.map
+*.sym
+*.ino.cpp
+
+# 3. FOLDER BUILD
+# Beberapa versi Arduino IDE atau toolchain lain seperti PlatformIO
+# akan membuat folder khusus untuk menyimpan hasil build.
+/build/
+/.build/
+
+# 4. FILE SPESIFIK SISTEM OPERASI (OS)
+# File "sampah" yang dibuat otomatis oleh Windows, macOS, atau Linux.
+# Windows
+Thumbs.db
+desktop.ini
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+# Linux
+.Trash-*
+
+# 5. FILE SPESIFIK EDITOR KODE (Opsional, tapi praktik yang baik)
+# Abaikan folder konfigurasi yang dibuat oleh editor kode Anda.
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# 6. LIBRARY LOKAL (Opsional)
+# Jika Anda menaruh folder library di dalam folder proyek, sebaiknya abaikan.
+# Praktik terbaik adalah mencatat library yang dibutuhkan di file README.md.
+/libraries/
+/lib/

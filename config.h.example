@@ -1,0 +1,41 @@
+// config.h
+
+#ifndef CONFIG_H
+#define CONFIG_H
+
+// === KONFIGURASI JARINGAN ===
+#define WIFI_SSID "nama_wifi"
+#define WIFI_PASSWORD "pass_wifi"
+
+// === KONFIGURASI FIREBASE ===
+#define FIREBASE_HOST "url_host_firebase"
+#define FIREBASE_AUTH "kode_auth_firebase"
+
+// === KONFIGURASI PIN PERANGKAT KERAS (FINAL) ===
+// Pin I2C untuk OLED dan I/O Expander
+#define PIN_I2C_SDA 5
+#define PIN_I2C_SCL 4
+
+// Alamat Perangkat I2C (sesuai hasil scanner)
+#define OLED_I2C_ADDR 0x3C
+#define PCF8574_I2C_ADDR 0x20
+
+// Pin yang terhubung langsung ke ESP32
+#define PIN_SERVO 13
+#define PIN_PIR   15
+// Pin LED RGB 
+#define PIN_RGB_R 2
+#define PIN_RGB_G 25
+#define PIN_RGB_B 26 
+
+// --- Definisi Keypad yang hilang ada di sini ---
+#define KEYPAD_ROWS 4
+#define KEYPAD_COLS 4
+
+// === PENGATURAN LAINNYA ===
+const int SERVO_LOCKED_POS = 0;
+const int SERVO_UNLOCKED_POS = 90;
+const String DEFAULT_PASSWORD = "1234";
+const int AUTO_LOCK_DELAY_MS = 5000;
+
+#endif
