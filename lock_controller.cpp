@@ -18,7 +18,7 @@ void lock_door() {
     lockState = false;
     Serial.println("SYSTEM: Pintu Terkunci.");
     update_firebase_lock_state(lockState);
-    led_show_locked(); // <--- TAMBAHKAN INI
+    // led_show_locked(); // <--- TAMBAHKAN INI
   }
 }
 
@@ -28,7 +28,7 @@ void unlock_door() {
     lockState = true;
     Serial.println("SYSTEM: Pintu Terbuka.");
     update_firebase_lock_state(lockState);
-    led_show_unlocked(); // <--- TAMBAHKAN INI
+    // led_show_unlocked(); // <--- TAMBAHKAN INI
   }
 }
 
