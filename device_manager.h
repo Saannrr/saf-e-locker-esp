@@ -3,6 +3,9 @@
 #ifndef DEVICE_MANAGER_H
 #define DEVICE_MANAGER_H
 
+// --- TAMBAHKAN DEKLARASI EXTERN DI SINI ---
+extern unsigned long unlockTimestamp;
+
 void device_setup();
 void device_loop();
 

@@ -18,12 +18,20 @@ void firebase_setup() {
 
 void firebase_loop() {
   if (millis() - lastFirebaseCheck >= 2000) { // Cek Firebase setiap 2 detik
-    lastFirebaseCheck = millis();
+      lastFirebaseCheck = millis();
     if (Firebase.ready()) {
-      if (Firebase.getBool(fbdo, "/saf-e-locker/isLocked")) {
+      if (Firebase.getBool(fbdo, "/saf-e-locker/isLocked")) { // Path disesuaikan
+        // Cek apakah nilai dari Firebase berbeda dengan state lokal
         if (fbdo.boolData() != get_lock_state()) {
-          Serial.println("Menerima perintah dari Firebase!");
-          fbdo.boolData() ? unlock_door() : lock_door();
+            Serial.println("Menerima perintah dari Firebase!");
+            // Logika BARU yang sudah benar dan intuitif:
+            // Jika isLocked dari Firebase itu true -> panggil lock_door()
+            // Jika isLocked dari Firebase itu false -> panggil unlock_door()
+            if (fbdo.boolData()) {
+                lock_door();
+            } else {
+                unlock_door();
+          }
         }
       }
     }

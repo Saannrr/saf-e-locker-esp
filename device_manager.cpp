@@ -1,4 +1,4 @@
-// File: device_manager.cpp
+// File: device_manager.cpp (Versi Perbaikan)
 
 #include <Keypad.h>
 #include <Keypad_I2C.h>
@@ -74,7 +74,7 @@ void update_oled_display(const String& line1, const String& line2 = "", int size
 void check_password() {
   if (currentInput == passwordLock) {
     update_oled_display("Akses Diterima!");
-    unlock_door();
+    unlock_door(); // Fungsi ini sekarang set lockState menjadi false (terbuka)
     send_notification("Pintu Dibuka", "Pintu dibuka dengan keypad.");
     unlockTimestamp = millis(); // Mulai timer untuk kunci otomatis
   } else {
@@ -84,12 +84,12 @@ void check_password() {
   }
   currentInput = ""; // Reset input setelah pengecekan
   
-  // Setelah beberapa saat, kembalikan tampilan ke state normal
-  // Cek dulu apakah pintu akhirnya terbuka atau masih terkunci
-  if (get_lock_state()) {
-      update_oled_display("Pintu Terbuka", "Otomatis terkunci...");
+  // --- PERUBAHAN LOGIKA TAMPILAN ---
+  // Cek apakah pintu sekarang dalam keadaan TERBUKA (!get_lock_state() -> !false -> true)
+  if (!get_lock_state()) { 
+     update_oled_display("Pintu Terbuka", "Otomatis terkunci...");
   } else {
-      update_oled_display("Masukkan PIN:", "");
+     update_oled_display("Masukkan PIN:", "");
   }
 }
 
@@ -124,7 +124,7 @@ void device_setup() {
 
 // --- Fungsi Loop Perangkat ---
 void device_loop() {
-  // 1. Logika utama untuk membaca keypad (TELAH DIPULIHKAN)
+  // 1. Logika utama untuk membaca keypad
   char customKey = customKeypad.getKey();
   if (customKey) {
     if (customKey >= '0' && customKey <= '9') {
@@ -146,7 +146,9 @@ void device_loop() {
   }
 
   // 2. Logika Auto-Lock
-  if (get_lock_state() && (millis() - unlockTimestamp >= AUTO_LOCK_DELAY_MS)) {
+  // --- PERUBAHAN LOGIKA ---
+  // Cek jika pintu dalam keadaan TERBUKA (!get_lock_state() -> !false -> true) dan timer sudah lewat
+  if (!get_lock_state() && (millis() - unlockTimestamp >= AUTO_LOCK_DELAY_MS)) {
     update_oled_display("Mengunci Otomatis...");
     lock_door();
     delay(1000);
@@ -157,15 +159,15 @@ void device_loop() {
   if (millis() - pirDebounceTime > 2000) {
     int pirVal = digitalRead(PIN_PIR);
     if (pirVal == HIGH && lastPirState == LOW) { // Hanya picu saat perubahan dari LOW ke HIGH
-        if (!get_lock_state()) { // Hanya jika pintu sedang terkunci
-          led_show_motion();
-          Serial.println("Gerakan terdeteksi!");
-          send_notification("Gerakan Terdeteksi", "Ada gerakan di dekat pintu.");
-          update_oled_display("Gerakan Terdeteksi!", "");
-          delay(2000); // Tampilkan pesan selama 2 detik
-          update_oled_display("Masukkan PIN:", currentInput); // Kembali ke tampilan PIN
-        }
-        pirDebounceTime = millis();
+      
+      // --- PERUBAHAN LOGIKA ---
+      // Cek jika pintu sedang TERKUNCI (get_lock_state() akan bernilai true)
+      if (get_lock_state()) { 
+        led_show_motion();
+        Serial.println("Gerakan terdeteksi!");
+        send_notification("Gerakan Terdeteksi", "Ada gerakan di dekat pintu.");
+      }
+      pirDebounceTime = millis();
     }
     lastPirState = pirVal;
   }
