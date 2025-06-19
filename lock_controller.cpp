@@ -1,11 +1,13 @@
+// File: lock_controller.cpp (Versi Perbaikan)
+
 #include <ESP32Servo.h>
 #include "lock_controller.h"
 #include "config.h"
-#include "firebase_handler.h" // Perlu untuk update status ke Firebase
-#include "device_manager.h"
+#include "firebase_handler.h"
+#include "device_manager.h" // Pastikan ini di-include
 
 Servo motorKunci;
-bool lockState = false;
+bool lockState = true; 
 
 void lock_setup() {
   motorKunci.attach(PIN_SERVO);
@@ -14,21 +16,27 @@ void lock_setup() {
 
 void lock_door() {
   motorKunci.write(SERVO_LOCKED_POS);
-  if (lockState != false) { 
-    lockState = false;
+  if (lockState != true) {
+    lockState = true;
     Serial.println("SYSTEM: Pintu Terkunci.");
     update_firebase_lock_state(lockState);
-    led_show_locked(); // <--- TAMBAHKAN INI
+    
+    // --- TAMBAHKAN PEMICU LED DI SINI ---
+    led_show_occupied();
   }
 }
 
 void unlock_door() {
   motorKunci.write(SERVO_UNLOCKED_POS);
-  if (lockState != true) {
-    lockState = true;
+  if (lockState != false) {
+    lockState = false;
     Serial.println("SYSTEM: Pintu Terbuka.");
     update_firebase_lock_state(lockState);
-    led_show_unlocked(); // <--- TAMBAHKAN INI
+    unlockTimestamp = millis();
+    
+    // --- TAMBAHKAN PEMICU LED DI SINI ---
+    // Setelah terbuka, loker menjadi tersedia lagi
+    led_show_available();
   }
 }
 

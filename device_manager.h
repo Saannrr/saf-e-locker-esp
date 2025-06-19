@@ -3,13 +3,17 @@
 #ifndef DEVICE_MANAGER_H
 #define DEVICE_MANAGER_H
 
+// --- TAMBAHKAN DEKLARASI EXTERN DI SINI ---
+extern unsigned long unlockTimestamp;
+
 void device_setup();
 void device_loop();
 
-// --- DEKLARASI FUNGSI BARU UNTUK LED ---
-void led_set_color(int red, int green, int blue);
-void led_show_locked();
-void led_show_unlocked();
-void led_show_motion();
+// --- DEKLARASI FUNGSI BARU UNTUK LED RGB ---
+void led_set_color(int r, int g, int b);
+void led_show_available();
+void led_show_occupied();
+void led_show_maintenance(); // Meskipun sama dengan occupied, ini untuk kejelasan
+void led_turn_off();
 
 #endif
