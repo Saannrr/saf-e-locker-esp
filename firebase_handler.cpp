@@ -1,8 +1,11 @@
-#include <FirebaseESP32.h>
+// File: firebase_handler.cpp (Final untuk library FirebaseESP32.h v4.x)
+
+#include <Firebase_ESP_Client.h>
 #include "firebase_handler.h"
 #include "config.h"
-#include "lock_controller.h" // Perlu untuk mengontrol kunci
+#include "lock_controller.h"
 
+// Definisikan objek Firebase
 FirebaseData fbdo;
 FirebaseAuth auth;
 FirebaseConfig config;
@@ -10,47 +13,83 @@ FirebaseConfig config;
 unsigned long lastFirebaseCheck = 0;
 
 void firebase_setup() {
-  config.database_url = FIREBASE_HOST;
-  config.signer.tokens.legacy_token = FIREBASE_AUTH;
+  // --- Konfigurasi untuk koneksi ---
+  config.api_key = API_KEY;
+
+  // --- Konfigurasi untuk otentikasi via Service Account ---
+  auth.user.email = CLIENT_EMAIL;
+  config.service_account.data.private_key = PRIVATE_KEY;
+  config.service_account.data.client_email = CLIENT_EMAIL;
+  config.service_account.data.project_id = PROJECT_ID;
+
+  // Inisialisasi Firebase dengan konfigurasi baru
   Firebase.begin(&config, &auth);
   Firebase.reconnectWiFi(true);
 }
 
 void firebase_loop() {
-  if (millis() - lastFirebaseCheck >= 2000) { // Cek Firebase setiap 2 detik
-      lastFirebaseCheck = millis();
+  if (WiFi.status() == WL_CONNECTED && millis() - lastFirebaseCheck >= 2000) {
+    lastFirebaseCheck = millis();
+
     if (Firebase.ready()) {
-      if (Firebase.getBool(fbdo, "/saf-e-locker/isLocked")) { // Path disesuaikan
-        // Cek apakah nilai dari Firebase berbeda dengan state lokal
-        if (fbdo.boolData() != get_lock_state()) {
+      String documentPath = "lockers/" + String(LOCKER_ID);
+
+      // --- KODE BARU (Sintaks yang Benar untuk FirebaseESP32.h) ---
+      // Panggil getDocument melalui Firebase.Firestore
+      if (Firebase.Firestore.getDocument(&fbdo, PROJECT_ID, "", documentPath.c_str())) {
+        Serial.printf("Mendapat data: %s\n", fbdo.payload().c_str());
+
+        FirebaseJson payloadJson;
+        payloadJson.setJsonData(fbdo.payload());
+        
+        FirebaseJsonData jsonData;
+        payloadJson.get(jsonData, "fields/isLocked/booleanValue");
+
+        if (jsonData.success) {
+          bool firebaseLockState = jsonData.boolValue;
+          if (firebaseLockState != get_lock_state()) {
             Serial.println("Menerima perintah dari Firebase!");
-            // Logika BARU yang sudah benar dan intuitif:
-            // Jika isLocked dari Firebase itu true -> panggil lock_door()
-            // Jika isLocked dari Firebase itu false -> panggil unlock_door()
-            if (fbdo.boolData()) {
-                lock_door();
+            if (firebaseLockState) {
+              lock_door();
             } else {
-                unlock_door();
+              unlock_door();
+            }
           }
         }
+      } else {
+          // Tambahkan ini untuk melihat error jika gagal mengambil data
+          Serial.println(fbdo.errorReason());
       }
     }
   }
 }
 
-void update_firebase_lock_state(bool isUnlocked) {
+void update_firebase_lock_state(bool isLocked) {
   if (Firebase.ready()) {
-    Firebase.setBool(fbdo, "/saf-e-locker/isLocked", isUnlocked);
+    String documentPath = "lockers/" + String(LOCKER_ID);
+    String content = "{\"fields\":{\"isLocked\":{\"booleanValue\":" + String(isLocked ? "true" : "false") + "}}}";
+
+    // --- KODE BARU (Sintaks yang Benar untuk FirebaseESP32.h) ---
+    // Panggil patchDocument melalui Firebase.Firestore
+    if (Firebase.Firestore.patchDocument(&fbdo, PROJECT_ID, "", documentPath.c_str(), content.c_str(), "isLocked")) {
+      Serial.printf("Berhasil update state di Firestore: %s\n", fbdo.payload().c_str());
+    } else {
+      Serial.printf("Gagal update state di Firestore: %s\n", fbdo.errorReason().c_str());
+    }
   }
 }
 
 void send_notification(const String& title, const String& body) {
   if (Firebase.ready()) {
-    FirebaseJson json;
-    json.add("title", title);
-    json.add("body", body);
-    json.set("timestamp/.sv", "timestamp");
-    Firebase.pushAsync(fbdo, "/notifications", json);
-    Serial.println("Notifikasi dikirim: " + title);
+    String collectionPath = "notifications";
+    String content = "{\"fields\":{\"title\":{\"stringValue\":\"" + title + "\"},\"body\":{\"stringValue\":\"" + body + "\"}}}";
+
+    // --- KODE BARU (Sintaks yang Benar untuk FirebaseESP32.h) ---
+    // Panggil createDocument melalui Firebase.Firestore
+    if (Firebase.Firestore.createDocument(&fbdo, PROJECT_ID, "", collectionPath.c_str(), content.c_str())) {
+      Serial.println("Notifikasi berhasil dikirim ke Firestore.");
+    } else {
+      Serial.println(fbdo.errorReason());
+    }
   }
 }
