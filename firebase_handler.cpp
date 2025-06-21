@@ -1,6 +1,7 @@
 // File: firebase_handler.cpp (Final untuk library FirebaseESP32.h v4.x)
 
 #include <Firebase_ESP_Client.h>
+#include <time.h>
 #include "firebase_handler.h"
 #include "config.h"
 #include "lock_controller.h"
@@ -82,12 +83,30 @@ void update_firebase_lock_state(bool isLocked) {
 void send_notification(const String& title, const String& body) {
   if (Firebase.ready()) {
     String collectionPath = "notifications";
-    String content = "{\"fields\":{\"title\":{\"stringValue\":\"" + title + "\"},\"body\":{\"stringValue\":\"" + body + "\"}}}";
+
+    // Sinkronisasi NTP agar ESP32 tahu waktu
+    configTime(0, 0, "pool.ntp.org");
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo)) {
+        Serial.println("Gagal mendapatkan waktu dari NTP");
+        return;
+    }
+
+    char timeStr[30];
+    strftime(timeStr, sizeof(timeStr), "%Y-%m-%dT%H:%M:%SZ", &timeinfo); // Format RFC 3339
+
+    // Buat JSON payload Firestore dengan timestamp lokal
+    String content = "{\"fields\":{"
+                        "\"title\":{\"stringValue\":\"" + title + "\"},"
+                        "\"body\":{\"stringValue\":\"" + body + "\"},"
+                        "\"locker_id\":{\"stringValue\":\"" + String(LOCKER_ID) + "\"},"
+                        "\"timestamp\":{\"timestampValue\":\"" + String(timeStr) + "\"}"
+                     "}}";
 
     // --- KODE BARU (Sintaks yang Benar untuk FirebaseESP32.h) ---
     // Panggil createDocument melalui Firebase.Firestore
     if (Firebase.Firestore.createDocument(&fbdo, PROJECT_ID, "", collectionPath.c_str(), content.c_str())) {
-      Serial.println("Notifikasi berhasil dikirim ke Firestore.");
+      Serial.println("Notifikasi "+ String(LOCKER_ID) +" berhasil dikirim ke Firestore.");
     } else {
       Serial.println(fbdo.errorReason());
     }
