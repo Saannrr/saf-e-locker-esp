@@ -30,7 +30,6 @@ Keypad_I2C customKeypad(makeKeymap(keys), rowPins, colPins, KEYPAD_ROWS, KEYPAD_
 Preferences preferences;
 
 // Variabel Internal
-String passwordLock;
 String currentInput = "";
 int lastPirState = LOW;
 unsigned long pirDebounceTime = 0;
@@ -86,22 +85,30 @@ void update_oled_display(const String& line1, const String& line2 = "", int size
 
 // --- Fungsi untuk memeriksa password dari keypad ---
 void check_password() {
-  if (currentInput == passwordLock) {
+  // Cek dulu apakah ada PIN yang aktif. Jika tidak, jangan lakukan apa-apa.
+  if (activePin == "") {
+    update_oled_display("Loker tidak aktif", "");
+    delay(2000);
+    currentInput = "";
+    update_oled_display("Masukkan PIN:", "");
+    return;
+  }
+
+  if (currentInput == activePin) {
     update_oled_display("Akses Diterima!");
-    unlock_door(); // Fungsi ini sekarang set lockState menjadi false (terbuka)
-    send_notification("Pintu Dibuka", "Pintu dibuka dengan keypad.");
-    unlockTimestamp = millis(); // Mulai timer untuk kunci otomatis
+    unlock_door();
+    // Timestamp tidak perlu direset di sini, karena sudah direset di lock_controller
   } else {
     update_oled_display("PIN Salah!", "");
-    send_notification("Akses Ditolak", "Percobaan PIN salah.");
+    send_notification("Akses Ditolak", "Percobaan PIN salah dari keypad.");
     delay(2000);
   }
-  currentInput = ""; // Reset input setelah pengecekan
-  
-  // --- PERUBAHAN LOGIKA TAMPILAN ---
-  // Cek apakah pintu sekarang dalam keadaan TERBUKA (!get_lock_state() -> !false -> true)
-  if (!get_lock_state()) { 
-     update_oled_display("Pintu Terbuka", "Otomatis terkunci...");
+
+  currentInput = ""; // Selalu reset input setelah pengecekan
+
+  // Update tampilan OLED setelah cek
+  if (!get_lock_state()) { // Jika pintu sekarang terbuka
+     update_oled_display("Pintu Terbuka", "");
   } else {
      update_oled_display("Masukkan PIN:", "");
   }
@@ -129,9 +136,9 @@ void device_setup() {
   // Inisialisasi Keypad
   customKeypad.begin();
 
-  // Inisialisasi Preferences (untuk menyimpan password)
-  preferences.begin("saf-e-locker", false);
-  passwordLock = preferences.getString("password", DEFAULT_PASSWORD);
+  // Inisialisasi Preferences (untuk menyimpan password) (disable, dikarenakan mau pakai passkey dinamis di firebase)
+  // preferences.begin("saf-e-locker", false);
+  // passwordLock = preferences.getString("password", DEFAULT_PASSWORD);
 
   // Set status LED awal
   // led_show_locked(); 

@@ -8,6 +8,7 @@ extern unsigned long unlockTimestamp;
 
 void device_setup();
 void device_loop();
+void check_password();
 
 // --- DEKLARASI FUNGSI BARU UNTUK LED RGB ---
 void led_set_color(int r, int g, int b);
