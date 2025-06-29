@@ -13,8 +13,9 @@ void check_password();
 // --- DEKLARASI FUNGSI BARU UNTUK LED RGB ---
 void led_set_color(int r, int g, int b);
 void led_show_available();
-void led_show_occupied();
-void led_show_maintenance(); // Meskipun sama dengan occupied, ini untuk kejelasan
+void led_show_used();
+void led_show_maintenance();
+void led_show_open_blinking();
 void led_turn_off();
 
 #endif

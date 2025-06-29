@@ -2,6 +2,7 @@
 
 #include <Firebase_ESP_Client.h>
 #include <time.h>
+#include <HTTPClient.h>
 #include "firebase_handler.h"
 #include "config.h"
 #include "lock_controller.h"
@@ -13,12 +14,15 @@ FirebaseAuth auth;
 FirebaseConfig config;
 
 String activePin = "";  // Untuk menyimpan PIN aktif secara global
+String lockerStatus = "available"; // Nilai default
+unsigned long lastUnlockRequestTimestamp = 0;
 
 // --- Deklarasi Callback Stream ---
 void firestore_data_callback(FirebaseStream data);
 void stream_timeout_callback(bool timeout);
 
 unsigned long lastFirebaseCheck = 0;
+const char* REPORT_MOTION_URL = "https://us-central1-saf-e-locker.cloudfunctions.net/reportSuspiciousMotion";
 
 void firebase_setup() {
   config.api_key = API_KEY;
@@ -39,14 +43,14 @@ void firebase_loop() {
     if (Firebase.ready()) {
       String documentPath = "lockers/" + String(LOCKER_ID);
 
+      FirebaseJson payloadJson;
+      payloadJson.setJsonData(fbdo.payload());
+      FirebaseJsonData jsonData;
+
       // --- KODE BARU (Sintaks yang Benar untuk FirebaseESP32.h) ---
       // Panggil getDocument melalui Firebase.Firestore
       if (Firebase.Firestore.getDocument(&fbdo, PROJECT_ID, "", documentPath.c_str())) {
         Serial.printf("\n[Polling] Mendapat data loker: %s\n", fbdo.payload().c_str());
-
-        FirebaseJson payloadJson;
-        payloadJson.setJsonData(fbdo.payload());
-        FirebaseJsonData jsonData;
 
         // --- Parsing isLocked ---
         if (payloadJson.get(jsonData, "fields/isLocked/booleanValue")) {  // Gunakan slash
@@ -70,10 +74,29 @@ void firebase_loop() {
           Serial.println("Field 'active_pin' tidak ditemukan");
           activePin = "";  // Reset jika field tidak ada
         }
+
+        if (payloadJson.get(jsonData, "fields/status/stringValue")) {
+          lockerStatus = jsonData.to<String>();
+        } else {
+            lockerStatus = "unknown"; // Jika field status tidak ada
+          }
       } else {
           // Tambahkan ini untuk melihat error jika gagal mengambil data
           Serial.printf("Gagal baca Firestore: %s\n", fbdo.errorReason().c_str());
       }
+
+      // ...
+      // --- Parsing isLocked ---
+      if (payloadJson.get(jsonData, "fields/isLocked/booleanValue")) {
+          bool firebaseLockState = jsonData.to<bool>();
+          // Jika status di Firebase (false) berbeda dengan status fisik (true)...
+          if (firebaseLockState != get_lock_state()) {
+              Serial.printf("Perintah kunci dari server: %s\n", firebaseLockState ? "LOCK" : "UNLOCK");
+              // ...maka eksekusi perintahnya.
+              if (firebaseLockState) lock_door(); else unlock_door();
+          }
+        }
+      // ...
     }
   }
 }
@@ -92,31 +115,53 @@ void update_firebase_lock_state(bool isLocked) {
   }
 }
 
+// --- PERUBAHAN 3: Modifikasi Total Fungsi send_notification ---
+// Fungsi ini sekarang tidak lagi menulis ke Firestore.
+// Tugasnya adalah memanggil Cloud Function yang akan melakukan semua pekerjaan berat.
 void send_notification(const String& title, const String& body) {
-  if (!Firebase.ready()) return;
-
-  // Sinkronisasi waktu
-  configTime(0, 0, "pool.ntp.org");
-  struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) {
-    Serial.println("Gagal sinkronisasi NTP");
+  // Kita tidak lagi butuh parameter title dan body, karena Cloud Function
+  // yang akan menentukan isi notifikasinya. Tapi kita biarkan agar tidak merusak
+  // panggilan fungsi dari tempat lain di kode Anda.
+  
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Gagal kirim notifikasi: WiFi tidak terhubung.");
     return;
   }
 
-  char timeStr[30];
-  strftime(timeStr, sizeof(timeStr), "%Y-%m-%dT%H:%M:%SZ", &timeinfo);
+  HTTPClient http;
 
-  String content =
-    "{\"fields\":{"
-    "\"title\":{\"stringValue\":\"" + title + "\"},"
-    "\"body\":{\"stringValue\":\"" + body + "\"},"
-    "\"locker_id\":{\"stringValue\":\"" + String(LOCKER_ID) + "\"},"
-    "\"timestamp\":{\"timestampValue\":\"" + String(timeStr) + "\"}"
-    "}}";
+  // Mulai koneksi ke endpoint Cloud Function
+  http.begin(REPORT_MOTION_URL);
+  
+  // Set header bahwa kita mengirim data JSON
+  http.addHeader("Content-Type", "application/json");
 
-  if (Firebase.Firestore.createDocument(&fbdo, PROJECT_ID, "", "notifications", content.c_str())) {
-    Serial.println("Notifikasi berhasil dikirim.");
+  // Buat payload JSON yang sederhana, hanya berisi ID loker dan ESP32.
+  // Ini jauh lebih efisien daripada membuat JSON Firestore yang kompleks.
+  String payload = "{\"lockerId\":\"" + String(LOCKER_ID) + "\",\"esp32_id\":\"" + String(ESP32_ID) + "\"}";
+
+  Serial.println("Mengirim peringatan gerakan ke Cloud Function...");
+  Serial.print("Payload: ");
+  Serial.println(payload);
+
+  // Kirim request HTTP POST
+  int httpResponseCode = http.POST(payload);
+
+  if (httpResponseCode > 0) {
+    String response = http.getString();
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpResponseCode);
+    Serial.print("Response dari Cloud Function: ");
+    Serial.println(response);
   } else {
-    Serial.printf("Gagal kirim notifikasi: %s\n", fbdo.errorReason().c_str());
+    Serial.print("Error saat mengirim POST ke Cloud Function: ");
+    Serial.println(httpResponseCode);
   }
+
+  // Tutup koneksi
+  http.end();
+}
+
+String get_locker_status() {
+  return lockerStatus;
 }

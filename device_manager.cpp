@@ -34,41 +34,47 @@ String currentInput = "";
 int lastPirState = LOW;
 unsigned long pirDebounceTime = 0;
 unsigned long unlockTimestamp = 0;
+unsigned long lastBlinkTime = 0;
+bool ledBlinkState = false;
 
 // --- IMPLEMENTASI FUNGSI BARU UNTUK LED RGB ---
 // Helper function untuk mengatur warna (asumsi Common Anode: LOW = ON)
 void led_set_color(int r, int g, int b) {
-  digitalWrite(PIN_RGB_R, r);
-  digitalWrite(PIN_RGB_G, g);
-  digitalWrite(PIN_RGB_B, b);
+    digitalWrite(PIN_RGB_R, r);
+    digitalWrite(PIN_RGB_G, g);
+    digitalWrite(PIN_RGB_B, b);
 }
 
-// Menyalakan LED HIJAU menandakan tersedia
+// Menyalakan LED HIJAU menandakan tersedia (available)
 void led_show_available() {
-  // R=OFF, G=ON, B=OFF
-  led_set_color(HIGH, LOW, HIGH);
-  Serial.println("LED: Hijau (Tersedia)");
+    led_set_color(HIGH, LOW, HIGH); // R=OFF, G=ON, B=OFF
 }
 
-// Menyalakan LED MERAH menandakan terpakai
-void led_show_occupied() {
-  // R=ON, G=OFF, B=OFF
-  led_set_color(LOW, HIGH, HIGH);
-  Serial.println("LED: Merah (Terpakai)");
+// --- PERUBAHAN 2: Fungsi LED baru sesuai permintaan ---
+// Menyalakan LED BIRU menandakan sedang digunakan (used/occupied)
+void led_show_used() {
+    led_set_color(HIGH, HIGH, LOW); // R=OFF, G=OFF, B=ON
 }
 
 // Menyalakan LED MERAH menandakan maintenance
 void led_show_maintenance() {
-  // Sama seperti occupied
-  led_set_color(LOW, HIGH, HIGH);
-  Serial.println("LED: Merah (Maintenance)");
+    led_set_color(LOW, HIGH, HIGH); // R=ON, G=OFF, B=OFF
 }
 
-// Mematikan semua LED
-void led_turn_off() {
-  led_set_color(HIGH, HIGH, HIGH);
-  Serial.println("LED: Mati");
+// Membuat LED BIRU berkedip saat pintu terbuka
+void led_show_open_blinking() {
+    // Logika non-blocking untuk membuat LED berkedip setiap 250ms
+    if (millis() - lastBlinkTime > 250) {
+        lastBlinkTime = millis();
+        ledBlinkState = !ledBlinkState; // Balikkan status kedip
+        if (ledBlinkState) {
+            led_set_color(HIGH, HIGH, LOW); // LED Biru ON
+        } else {
+            led_set_color(HIGH, HIGH, HIGH); // LED OFF
+        }
+    }
 }
+// ---------------------------------------------------
 
 // --- Fungsi untuk menampilkan teks di OLED ---
 void update_oled_display(const String& line1, const String& line2 = "", int size1 = 1, int size2 = 2) {
@@ -183,16 +189,43 @@ void device_loop() {
     update_oled_display("Masukkan PIN:", "");
   }
 
-  // 3. Logika Sensor PIR (TIDAK LAGI MENGATUR LED)
-  if (millis() - pirDebounceTime > 2000) {
-    int pirVal = digitalRead(PIN_PIR);
-    if (pirVal == HIGH && lastPirState == LOW) {
-      if (get_lock_state()) { // Cek jika pintu sedang TERKUNCI
-        Serial.println("Gerakan terdeteksi!");
-        send_notification("Gerakan Terdeteksi", "Ada gerakan di dekat pintu Anda!");
+  // Logika ini akan berjalan terus menerus untuk memastikan warna LED
+  // selalu sesuai dengan kondisi loker saat ini.
+  if (!get_lock_state()) {
+      // PRIORITAS UTAMA: Jika pintu terbuka, LED BIRU selalu berkedip.
+      led_show_open_blinking();
+  } else {
+      // Jika pintu tertutup, tentukan warna LED berdasarkan status dari Firebase.
+      String currentStatus = get_locker_status(); // Panggil fungsi getter dari firebase_handler
+
+      if (currentStatus == "available") {
+            led_show_available(); // HIJAU
+      } else if (currentStatus == "occupied" || currentStatus == "locked_due_to_fine" || currentStatus == "pending_retrieval") {
+            // Kita anggap semua status "sedang dalam sewa" akan menampilkan warna biru.
+            led_show_used(); // BIRU
+      } else if (currentStatus == "maintenance") {
+            led_show_maintenance(); // MERAH
       }
-      pirDebounceTime = millis();
-    }
-    lastPirState = pirVal;
+  }
+  // ---------------------------------------------------
+
+
+  // --- PERUBAHAN 4: Logika Sensor PIR yang Lebih Spesifik ---
+  if (millis() - pirDebounceTime > 2000) {
+      int pirVal = digitalRead(PIN_PIR);
+      if (pirVal == HIGH && lastPirState == LOW) {
+            
+          // KONDISI BARU: Sensor PIR hanya aktif jika pintu TERKUNCI
+          // DAN status loker adalah 'occupied' (atau status sewa aktif lainnya).
+          String currentStatus = get_locker_status();
+          if (get_lock_state() && (currentStatus == "occupied" || currentStatus == "locked_due_to_fine" || currentStatus == "pending_retrieval")) {
+                Serial.println("Gerakan terdeteksi pada loker yang sedang terpakai!");
+                // Panggil fungsi untuk mengirim notifikasi ke Cloud Function
+                send_notification("Gerakan Terdeteksi", "Ada gerakan di dekat pintu Anda!");
+          }
+            
+          pirDebounceTime = millis();
+      }
+      lastPirState = pirVal;
   }
 }

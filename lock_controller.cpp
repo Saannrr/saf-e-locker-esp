@@ -22,7 +22,7 @@ void lock_door() {
     update_firebase_lock_state(lockState);
     
     // --- TAMBAHKAN PEMICU LED DI SINI ---
-    led_show_occupied();
+    led_show_used();
   }
 }
 
